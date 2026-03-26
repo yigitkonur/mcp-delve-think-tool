@@ -240,7 +240,7 @@ src/
     registry.ts                   registerAllTools()
     frame.ts, reason.ts, check.ts tool handlers
 tests/
-  engine.test.ts                  71 tests covering all engine components
+  engine.test.ts                  88 tests covering all engine components
   frame.test.ts                   frame processing
   reason.test.ts                  reasoning + contradictions + stability
   check.test.ts                   triage logic
@@ -252,7 +252,7 @@ built on `mcp-use` for http transport. no external dependencies beyond zod for s
 
 ```bash
 pnpm dev          # dev server with hmr
-pnpm test         # run 71 tests
+pnpm test         # run 88 tests
 pnpm typecheck    # tsc --noEmit
 pnpm build        # production build
 pnpm deploy       # deploy to manufact cloud

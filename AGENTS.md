@@ -66,9 +66,30 @@ premises:
   - claim: "cache was last written 2 hours ago"
     source: "assumed"  (haven't checked)
     confidence: 0.4
+    if_wrong: "cache hit rate would still be high"
+    verification_action: "check redis OBJECT IDLETIME on the key"
+    confidence_reasoning: "guessing based on typical write patterns, no actual data"
 ```
 
-now the server can tell you: "your chain is fragile because you're building on an unverified assumption about cache write time."
+now the server can tell you: "your chain is fragile because you're building on an unverified assumption about cache write time." and because you filled in `if_wrong` and `verification_action`, you already know what to check and what to look for.
+
+### v2 fields that force better thinking
+
+these are optional but they're where the real value is. filling them out IS the thinking:
+
+**on premises:**
+- `if_wrong` — what would you observe if this claim is false? forces disconfirmation thinking.
+- `verification_action` — how would you actually check this? transforms "i'm guessing" into a plan. server warns if missing on assumed premises.
+- `confidence_reasoning` — why this number and not higher/lower? prevents arbitrary confidence.
+- `derived_from` — if source is "derived", which step numbers? server auto-wires into dependency graph.
+
+**on frames:**
+- `strongest_objection` — argue AGAINST your own choice. server warns if missing on high-stakes frames.
+- `pre_mortem` — imagine you're wrong, what's the most likely reason?
+- `predictions` — if you're right, name 2-3 things that should be true.
+
+**on reason steps:**
+- `missing_evidence` — what data would you WANT but don't have? makes gaps explicit.
 
 ### source tags matter
 
@@ -101,7 +122,7 @@ src/schemas/          → zod input schemas (one per tool)
 src/engine/           → the brain: premise registry, contradiction detection, stability scoring
 src/engine/delve-server.ts → main engine class, session management, history
 src/tools/            → tool handlers that wire schemas to engine
-tests/                → 71 vitest tests
+tests/                → 88 vitest tests
 ```
 
 ### key patterns

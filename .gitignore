@@ -3,3 +3,5 @@ dist/
 .mcp-use/
 *.js.map
 resources/
+.env
+.env.*

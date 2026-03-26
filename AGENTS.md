@@ -101,7 +101,7 @@ src/schemas/          → zod input schemas (one per tool)
 src/engine/           → the brain: premise registry, contradiction detection, stability scoring
 src/engine/delve-server.ts → main engine class, session management, history
 src/tools/            → tool handlers that wire schemas to engine
-tests/                → 64 vitest tests
+tests/                → 71 vitest tests
 ```
 
 ### key patterns
@@ -115,7 +115,7 @@ tests/                → 64 vitest tests
 
 - never add external api dependencies to the engine. the engine must stay pure computation.
 - never remove `.describe()` from schema fields. agents depend on these descriptions to use the tools correctly.
-- never make contradiction detection ai-powered. it uses simple string matching on purpose — to avoid the recursive self-evaluation problem (asking the model to find its own contradictions).
+- never make contradiction detection ai-powered. it uses simple string matching + basic stemming on purpose — to avoid the recursive self-evaluation problem (asking the model to find its own contradictions).
 - never return raw engine internals. tool responses are curated for agent consumption.
 
 ### when changing tools
@@ -123,7 +123,7 @@ tests/                → 64 vitest tests
 1. update the zod schema in `src/schemas/`
 2. update the engine method in `src/engine/delve-server.ts`
 3. update the tool handler in `src/tools/`
-4. run `pnpm test` — all 64 tests must pass
+4. run `pnpm test` — all 71 tests must pass
 5. run `pnpm typecheck` — zero errors
 
 ### testing

@@ -394,6 +394,54 @@ describe('processReason', () => {
     expect(toolsUsed.filter((t) => t === 'grep')).toHaveLength(1);
   });
 
+  it('warns about duplicate step numbers', () => {
+    server.processReason(makeReasonInput(1));
+    const result = server.processReason(makeReasonInput(1));
+
+    expect(result.warnings).toContainEqual(
+      expect.stringContaining('Step 1 already exists'),
+    );
+  });
+
+  it('warns when all premises are assumed', () => {
+    const result = server.processReason(
+      makeReasonInput(1, {
+        premises: [
+          { claim: 'Guess A', source: 'assumed', source_detail: 'no evidence', confidence: 0.5 },
+          { claim: 'Guess B', source: 'assumed', source_detail: 'no evidence', confidence: 0.4 },
+        ],
+      }),
+    );
+
+    expect(result.warnings).toContainEqual(
+      expect.stringContaining('unverified assumptions'),
+    );
+  });
+
+  it('warns about critically low confidence premises', () => {
+    const result = server.processReason(
+      makeReasonInput(1, {
+        premises: [
+          { claim: 'Weak claim', source: 'assumed', source_detail: 'guess', confidence: 0.2 },
+        ],
+      }),
+    );
+
+    expect(result.warnings).toContainEqual(
+      expect.stringContaining('critically low confidence'),
+    );
+  });
+
+  it('warns when session_id provided but sessions disabled', () => {
+    const result = server.processReason(
+      makeReasonInput(1, { session_id: 'test-session' }),
+    );
+
+    expect(result.warnings).toContainEqual(
+      expect.stringContaining('sessions are disabled'),
+    );
+  });
+
   it('stability report includes dependency chain', () => {
     server.processReason(
       makeReasonInput(1, {

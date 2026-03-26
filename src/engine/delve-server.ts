@@ -85,16 +85,24 @@ export class DelveServer {
     prior_frames?: number[];
     session_id?: string;
   }): FrameResult {
+    const frameWarnings: string[] = [];
+
     // Handle session switching if session_id is provided
     if (input.session_id && this.config.features.enableSessions) {
       this.handleSessionSwitch(input.session_id);
+    } else if (input.session_id && !this.config.features.enableSessions) {
+      frameWarnings.push(
+        'session_id provided but sessions are disabled (DELVE_ENABLE_SESSIONS=false). All state is shared globally.'
+      );
     }
 
     // Validate prior_frames reference existing frame IDs
     if (input.prior_frames) {
       for (const priorId of input.prior_frames) {
         if (!this.frameIndex.has(priorId)) {
-          // Non-fatal: warn but continue
+          frameWarnings.push(
+            `Prior frame ${priorId} not found. It may have been trimmed or does not exist.`
+          );
         }
       }
     }
@@ -128,6 +136,7 @@ export class DelveServer {
       assumptions_count: input.assumptions.length,
       alternatives_count: input.alternative_interpretations.length,
       stakes: input.stakes ?? 'unspecified',
+      warnings: frameWarnings,
     };
   }
 
@@ -161,6 +170,7 @@ export class DelveServer {
     session_id?: string;
   }): ReasonResult {
     const warnings: string[] = [];
+    const stepStartTime = Date.now();
 
     // 1. Session management
     if (input.session_id && this.config.features.enableSessions) {
@@ -173,6 +183,17 @@ export class DelveServer {
       }
 
       this.handleSessionSwitch(input.session_id);
+    } else if (input.session_id && !this.config.features.enableSessions) {
+      warnings.push(
+        'session_id provided but sessions are disabled (DELVE_ENABLE_SESSIONS=false). All state is shared globally.'
+      );
+    }
+
+    // 1b. Reject duplicate step numbers
+    if (this.stepNumbers.has(input.step)) {
+      warnings.push(
+        `Step ${input.step} already exists and will be overwritten. Use a new step number or revises_step to correct previous steps.`
+      );
     }
 
     // 2. Validate dependencies
@@ -268,6 +289,25 @@ export class DelveServer {
       this.premiseRegistry.getUnverifiedAssumptions().length;
     this.history.metadata.unverified_assumption_count = unverifiedAssumptions;
 
+    // 8b. Warn about weak/assumed premises in this step
+    const stepAssumed = input.premises.filter(p => p.source === 'assumed');
+    if (stepAssumed.length > 0 && stepAssumed.length === input.premises.length) {
+      warnings.push(
+        `All ${stepAssumed.length} premise(s) in this step are unverified assumptions. Consider verifying at least one before building further.`
+      );
+    } else if (stepAssumed.length > 0) {
+      warnings.push(
+        `${stepAssumed.length} of ${input.premises.length} premise(s) in this step are unverified assumptions.`
+      );
+    }
+
+    const weakPremises = input.premises.filter(p => p.confidence < 0.4);
+    if (weakPremises.length > 0) {
+      warnings.push(
+        `${weakPremises.length} premise(s) have critically low confidence (< 0.4). Your reasoning chain is only as strong as its weakest link.`
+      );
+    }
+
     // 9. Track tools used
     if (input.tools_used) {
       for (const tool of input.tools_used) {
@@ -292,7 +332,7 @@ export class DelveServer {
       external_context: input.external_context,
       session_id: input.session_id,
       timestamp: new Date().toISOString(),
-      duration_ms: Date.now() - this.startTime,
+      duration_ms: Date.now() - stepStartTime,
     };
 
     this.history.steps.push(reasonStep);

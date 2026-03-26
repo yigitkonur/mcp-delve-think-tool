@@ -246,6 +246,35 @@ describe('ContradictionDetector', () => {
 
     expect(contradictions).toHaveLength(2);
   });
+
+  it('detects contradiction across word form variations (returns vs return)', () => {
+    registry.addPremises(1, [makePremise('The API returns JSON responses', 0.9)]);
+
+    const newPremises = [makePremise('The API does not return JSON responses', 0.85)];
+    const contradictions = detector.detect(2, newPremises, registry);
+
+    expect(contradictions).toHaveLength(1);
+    expect(contradictions[0]!.step_a).toBe(1);
+    expect(contradictions[0]!.step_b).toBe(2);
+  });
+
+  it('detects contradiction with auxiliary verb patterns (is running vs is not running)', () => {
+    registry.addPremises(1, [makePremise('The service is running on port 3000', 0.9)]);
+
+    const newPremises = [makePremise('The service is not running on port 3000', 0.8)];
+    const contradictions = detector.detect(2, newPremises, registry);
+
+    expect(contradictions).toHaveLength(1);
+  });
+
+  it('detects contradiction with contraction negations (auth tokens expire vs auth tokens don\'t expire)', () => {
+    registry.addPremises(1, [makePremise('auth tokens expire after 24 hours', 0.9)]);
+
+    const newPremises = [makePremise("auth tokens don't expire after 24 hours", 0.85)];
+    const contradictions = detector.detect(2, newPremises, registry);
+
+    expect(contradictions).toHaveLength(1);
+  });
 });
 
 // ──────────────────────────────────────────────────────────────

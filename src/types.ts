@@ -105,6 +105,7 @@ export interface FrameResult {
   assumptions_count: number;
   alternatives_count: number;
   stakes: StakeLevel | 'unspecified';
+  warnings: string[];
 }
 
 export interface ReasonResult {

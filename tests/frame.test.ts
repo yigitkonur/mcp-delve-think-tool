@@ -53,12 +53,13 @@ describe('processFrame', () => {
     server = new DelveServer(createConfig());
   });
 
-  it('valid frame returns frame_id, assumptions_count, alternatives_count', () => {
+  it('valid frame returns frame_id, assumptions_count, alternatives_count, warnings', () => {
     const result = server.processFrame(makeFrameInput());
 
     expect(result.frame_id).toBe(1);
     expect(result.assumptions_count).toBe(2);
     expect(result.alternatives_count).toBe(3);
+    expect(result.warnings).toEqual([]);
   });
 
   it('auto-increments frame_id across calls', () => {
@@ -86,13 +87,16 @@ describe('processFrame', () => {
     expect(history.metadata.frames_created).toBe(1);
   });
 
-  it('validates prior_frames (non-existent frame does not crash)', () => {
+  it('validates prior_frames (non-existent frame warns but does not crash)', () => {
     // Frame 999 does not exist, but processFrame should not throw
     const result = server.processFrame(
       makeFrameInput({ prior_frames: [999] }),
     );
 
     expect(result.frame_id).toBe(1);
+    expect(result.warnings).toContainEqual(
+      expect.stringContaining('Prior frame 999 not found'),
+    );
     // Verify it stored the prior_frames reference even if invalid
     const history = server.getHistory();
     expect(history.frames[0]!.prior_frames).toEqual([999]);

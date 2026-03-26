@@ -13,11 +13,11 @@ const engine = new DelveServer(config);
 const allowedOrigins = config.server.allowedOrigins;
 
 const server = new MCPServer({
-  name: 'delve-mcp',
+  name: 'mcp-delve-think-tool',
   version: '1.0.0',
-  title: 'DELVE — Deep Epistemic Logic and Verification Engine',
+  title: 'delve — think tool for ai agents',
   description:
-    'Premise-tracked reasoning MCP server. Three tools: delve-check (triage), delve-frame (problem perception), delve-reason (epistemic reasoning with contradiction detection and stability scoring).',
+    'makes agents question their assumptions before committing. three tools: delve-check (triage), delve-frame (problem framing), delve-reason (premise-tracked reasoning with contradiction detection).',
   host: config.server.host,
   ...(allowedOrigins.length > 0
     ? {
@@ -44,7 +44,7 @@ registerAllTools(server, engine);
 server.get('/health', (c) =>
   c.json({
     status: 'ok',
-    name: 'delve-mcp',
+    name: 'mcp-delve-think-tool',
     version: '1.0.0',
     uptime: Math.floor(process.uptime()),
     timestamp: new Date().toISOString(),
@@ -62,12 +62,12 @@ server.resource(
   {
     name: 'Server Health',
     uri: 'health://status',
-    description: 'DELVE server health and configuration status',
+    description: 'delve server health and config',
   },
   async () =>
     object({
       status: 'ok',
-      name: 'delve-mcp',
+      name: 'mcp-delve-think-tool',
       version: '1.0.0',
       uptime: Math.floor(process.uptime()),
       timestamp: new Date().toISOString(),
@@ -81,7 +81,7 @@ async function shutdown(signal: string, exitCode: number): Promise<void> {
   if (isShuttingDown) return;
   isShuttingDown = true;
 
-  console.error(`[${signal}] DELVE shutting down...`);
+  console.error(`[${signal}] delve shutting down...`);
 
   const forceExit = setTimeout(() => {
     console.error(`Forced exit after ${SHUTDOWN_TIMEOUT_MS}ms`);
@@ -110,7 +110,7 @@ process.on('unhandledRejection', (reason) => {
 });
 
 // Start
-console.error('DELVE MCP Server starting...');
+console.error('delve starting...');
 console.error(`  Require framing: ${config.features.requireFraming}`);
 console.error(`  Contradiction check: ${config.features.contradictionCheck}`);
 console.error(`  Sessions: ${config.features.enableSessions}`);
@@ -118,5 +118,5 @@ console.error(`  Max history: ${config.system.maxHistorySize} steps`);
 
 await server.listen(config.server.port);
 
-console.error(`DELVE MCP Server running on port ${config.server.port}`);
+console.error(`delve running on port ${config.server.port}`);
 console.error('Tools: delve-check, delve-frame, delve-reason');

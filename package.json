@@ -1,11 +1,11 @@
 {
-  "name": "delve-mcp",
+  "name": "mcp-delve-think-tool",
   "version": "1.0.0",
-  "description": "Deep Epistemic Logic and Verification Engine — premise-tracked reasoning MCP server for AI agents",
+  "description": "DELVE — the think tool that makes AI agents question their own assumptions. Premise-tracked reasoning with contradiction detection and stability scoring.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "delve-mcp": "dist/index.js"
+    "mcp-delve-think-tool": "dist/index.js"
   },
   "files": [
     "dist"
@@ -23,12 +23,24 @@
     "mcp",
     "reasoning",
     "structured-thinking",
+    "think-tool",
     "epistemic",
     "premise-tracking",
+    "contradiction-detection",
     "ai",
     "model-context-protocol",
-    "delve"
+    "delve",
+    "agent-reasoning",
+    "chain-of-thought"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yigitkonur/mcp-delve-think-tool.git"
+  },
+  "homepage": "https://think.yigitkonur.com",
+  "bugs": {
+    "url": "https://github.com/yigitkonur/mcp-delve-think-tool/issues"
+  },
   "author": "Yigit Konur",
   "license": "MIT",
   "dependencies": {

@@ -145,4 +145,69 @@ describe('processFrame', () => {
 
     expect(result.alternatives_count).toBe(0);
   });
+
+  // ── v2 LLM-guided thinking tests ──
+
+  it('warns about missing strongest_objection on high stakes', () => {
+    const result = server.processFrame(
+      makeFrameInput({ stakes: 'high' }),
+    );
+
+    expect(result.warnings).toContainEqual(
+      expect.stringContaining('counter-argument'),
+    );
+  });
+
+  it('no objection warning on high stakes when strongest_objection provided', () => {
+    const result = server.processFrame(
+      makeFrameInput({
+        stakes: 'high',
+        strongest_objection: 'The real bottleneck might be DNS, not caching',
+      }),
+    );
+
+    const objWarnings = result.warnings.filter(w => w.includes('counter-argument'));
+    expect(objWarnings).toHaveLength(0);
+  });
+
+  it('no objection warning on low/medium stakes', () => {
+    const result = server.processFrame(
+      makeFrameInput({ stakes: 'low' }),
+    );
+
+    const objWarnings = result.warnings.filter(w => w.includes('counter-argument'));
+    expect(objWarnings).toHaveLength(0);
+  });
+
+  it('predictions_count in result', () => {
+    const result = server.processFrame(
+      makeFrameInput({
+        predictions: [
+          '500s should correlate with pool exhaustion at 100%',
+          'Increasing pool should reduce 500s',
+        ],
+      }),
+    );
+
+    expect(result.predictions_count).toBe(2);
+  });
+
+  it('predictions_count is 0 when not provided', () => {
+    const result = server.processFrame(makeFrameInput());
+
+    expect(result.predictions_count).toBe(0);
+  });
+
+  it('stores strongest_objection and pre_mortem in frame', () => {
+    server.processFrame(
+      makeFrameInput({
+        strongest_objection: 'Could be network, not cache',
+        pre_mortem: 'If wrong, likely because we ignored DNS resolution',
+      }),
+    );
+
+    const history = server.getHistory();
+    expect(history.frames[0]!.strongest_objection).toBe('Could be network, not cache');
+    expect(history.frames[0]!.pre_mortem).toBe('If wrong, likely because we ignored DNS resolution');
+  });
 });

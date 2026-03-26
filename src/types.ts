@@ -15,6 +15,10 @@ export interface Premise {
   source: PremiseSource;
   source_detail: string;
   confidence: number; // 0-1
+  if_wrong?: string;
+  verification_action?: string;
+  confidence_reasoning?: string;
+  derived_from?: number[];
 }
 
 // --- Frame types ---
@@ -35,6 +39,9 @@ export interface Frame {
   chosen_interpretation: string;
   justification: string;
   stakes?: StakeLevel;
+  strongest_objection?: string;
+  pre_mortem?: string;
+  predictions?: string[];
   prior_frames?: number[];
   timestamp: string;
   session_id?: string;
@@ -62,6 +69,7 @@ export interface ReasonStep {
   revised_by?: number;
   is_final_step?: boolean;
   dependencies?: number[];
+  missing_evidence?: string[];
   tools_used?: string[];
   external_context?: Record<string, unknown>;
 
@@ -104,6 +112,7 @@ export interface FrameResult {
   frame_id: number;
   assumptions_count: number;
   alternatives_count: number;
+  predictions_count: number;
   stakes: StakeLevel | 'unspecified';
   warnings: string[];
 }
@@ -116,6 +125,7 @@ export interface ReasonResult {
   contradictions: Contradiction[];
   stability: StabilityReport;
   unverified_assumptions: number;
+  missing_evidence_count: number;
   revised_step?: number;
 }
 

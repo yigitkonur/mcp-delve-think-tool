@@ -81,6 +81,9 @@ export class DelveServer {
     alternative_interpretations: string[];
     chosen_interpretation: string;
     justification: string;
+    strongest_objection?: string;
+    pre_mortem?: string;
+    predictions?: string[];
     stakes?: StakeLevel;
     prior_frames?: number[];
     session_id?: string;
@@ -107,6 +110,13 @@ export class DelveServer {
       }
     }
 
+    // Warn about missing strongest_objection on high-stakes frames
+    if (input.stakes === 'high' && !input.strongest_objection) {
+      frameWarnings.push(
+        'High-stakes framing without a counter-argument. What\'s the best case against your chosen interpretation?'
+      );
+    }
+
     // Assign frame ID
     this.frameCounter++;
     const frameId = this.frameCounter;
@@ -120,6 +130,9 @@ export class DelveServer {
       chosen_interpretation: input.chosen_interpretation,
       justification: input.justification,
       stakes: input.stakes,
+      strongest_objection: input.strongest_objection,
+      pre_mortem: input.pre_mortem,
+      predictions: input.predictions,
       prior_frames: input.prior_frames,
       timestamp: new Date().toISOString(),
       session_id: input.session_id,
@@ -135,6 +148,7 @@ export class DelveServer {
       frame_id: frameId,
       assumptions_count: input.assumptions.length,
       alternatives_count: input.alternative_interpretations.length,
+      predictions_count: input.predictions?.length ?? 0,
       stakes: input.stakes ?? 'unspecified',
       warnings: frameWarnings,
     };
@@ -152,6 +166,10 @@ export class DelveServer {
       source: 'verified' | 'recalled' | 'assumed' | 'derived';
       source_detail: string;
       confidence: number;
+      if_wrong?: string;
+      verification_action?: string;
+      confidence_reasoning?: string;
+      derived_from?: number[];
     }>;
     outcome: string;
     next_action: string | {
@@ -165,6 +183,7 @@ export class DelveServer {
     revision_reason?: string;
     is_final_step?: boolean;
     dependencies?: number[];
+    missing_evidence?: string[];
     tools_used?: string[];
     external_context?: Record<string, unknown>;
     session_id?: string;
@@ -197,6 +216,8 @@ export class DelveServer {
     }
 
     // 2. Validate dependencies
+    const allDeps = new Set<number>(input.dependencies ?? []);
+
     if (input.dependencies) {
       for (const dep of input.dependencies) {
         if (dep === input.step) {
@@ -212,6 +233,21 @@ export class DelveServer {
             `Missing dependency: step ${dep} not found in history.`
           );
         }
+      }
+    }
+
+    // 2b. Auto-wire derived_from into dependency graph
+    for (const premise of input.premises) {
+      if (premise.source === 'derived' && premise.derived_from) {
+        for (const fromStep of premise.derived_from) {
+          allDeps.add(fromStep);
+        }
+      }
+      // Warn about derived without derived_from
+      if (premise.source === 'derived' && !premise.derived_from) {
+        warnings.push(
+          `Derived premise "${premise.claim.slice(0, 50)}..." without derived_from. Which prior step conclusions does this build on?`
+        );
       }
     }
 
@@ -237,6 +273,9 @@ export class DelveServer {
         if (original) {
           original.revised_by = input.step;
           this.history.metadata.revisions_count++;
+
+          // 4b. Confidence anchoring detection
+          this.detectConfidenceAnchoring(input, original, warnings);
         } else {
           warnings.push(
             `Step ${input.revises_step} not found for revision.`
@@ -265,8 +304,9 @@ export class DelveServer {
       }
     }
 
-    // 7. Stability scoring
-    const depGraph = this.buildDepGraph(input.step, input.dependencies);
+    // 7. Stability scoring (use allDeps which includes auto-wired derived_from)
+    const depsArray = Array.from(allDeps);
+    const depGraph = this.buildDepGraph(input.step, depsArray.length > 0 ? depsArray : undefined);
     const stability: StabilityReport = this.stabilityScorer.score(
       input.step,
       this.premiseRegistry,
@@ -308,6 +348,31 @@ export class DelveServer {
       );
     }
 
+    // 8c. Warn about assumed premises missing verification_action or if_wrong
+    for (const premise of input.premises) {
+      if (premise.source === 'assumed') {
+        if (!premise.verification_action) {
+          warnings.push(
+            `Assumed premise "${premise.claim.slice(0, 50)}..." without verification_action. How would you check this?`
+          );
+        }
+        if (!premise.if_wrong) {
+          warnings.push(
+            `Assumed premise "${premise.claim.slice(0, 50)}..." without if_wrong. What would disprove this?`
+          );
+        }
+      }
+    }
+
+    // 8d. Compound premise detection
+    for (const premise of input.premises) {
+      if (/ and /i.test(premise.claim) && premise.claim.length > 30) {
+        warnings.push(
+          `Premise "${premise.claim.slice(0, 50)}..." may contain multiple claims (detected "and"). Consider splitting for more precise confidence tracking.`
+        );
+      }
+    }
+
     // 9. Track tools used
     if (input.tools_used) {
       for (const tool of input.tools_used) {
@@ -327,7 +392,8 @@ export class DelveServer {
       revises_step: input.revises_step,
       revision_reason: input.revision_reason,
       is_final_step: input.is_final_step,
-      dependencies: input.dependencies,
+      dependencies: depsArray.length > 0 ? depsArray : input.dependencies,
+      missing_evidence: input.missing_evidence,
       tools_used: input.tools_used,
       external_context: input.external_context,
       session_id: input.session_id,
@@ -351,6 +417,11 @@ export class DelveServer {
       this.trimHistory();
     }
 
+    // 12b. Reasoning velocity warning (after 5+ steps)
+    if (this.history.steps.length >= 5) {
+      this.detectReasoningStall(warnings);
+    }
+
     // 13. Build and return result
     return {
       step: input.step,
@@ -360,6 +431,7 @@ export class DelveServer {
       contradictions,
       stability,
       unverified_assumptions: unverifiedAssumptions,
+      missing_evidence_count: input.missing_evidence?.length ?? 0,
       revised_step: input.revises_step,
     };
   }
@@ -398,32 +470,71 @@ export class DelveServer {
   }
 
   // ──────────────────────────────────────────────────────────────
+  // Confidence anchoring detection
+  // ──────────────────────────────────────────────────────────────
+
+  private detectConfidenceAnchoring(
+    input: { premises: Array<{ claim: string; confidence: number }> },
+    original: ReasonStep,
+    warnings: string[]
+  ): void {
+    if (original.premises.length === 0 || input.premises.length === 0) return;
+
+    const originalAvgConf = original.premises.reduce((s, p) => s + p.confidence, 0) / original.premises.length;
+    const newAvgConf = input.premises.reduce((s, p) => s + p.confidence, 0) / input.premises.length;
+    const confDelta = Math.abs(newAvgConf - originalAvgConf);
+
+    // If claims changed (revision) but confidence barely moved
+    if (confDelta < 0.1) {
+      warnings.push(
+        'Revision with barely-changed confidence. If the claim changed, the confidence should too — are you anchoring on your original estimate?'
+      );
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────
+  // Reasoning velocity / stall detection
+  // ──────────────────────────────────────────────────────────────
+
+  private detectReasoningStall(warnings: string[]): void {
+    const steps = this.history.steps;
+    const recentCount = Math.min(5, steps.length);
+    const recentSteps = steps.slice(-recentCount);
+
+    // Count assumed premises across recent steps
+    let assumedCount = 0;
+    for (const step of recentSteps) {
+      for (const p of step.premises) {
+        if (p.source === 'assumed') assumedCount++;
+      }
+    }
+
+    // If we have 5+ steps and assumed count is still high with no verification
+    const totalPremises = recentSteps.reduce((s, st) => s + st.premises.length, 0);
+    if (totalPremises > 0 && assumedCount / totalPremises > 0.5) {
+      warnings.push(
+        'Reasoning chain has stalled: over half of recent premises are still unverified assumptions. Consider verifying your weakest assumption before adding more steps.'
+      );
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────
   // Session management
   // ──────────────────────────────────────────────────────────────
 
   private handleSessionSwitch(sessionId: string): void {
-    // Check if we're already on this session
-    const currentSessionId = this.history.steps.length > 0
-      ? this.history.steps[this.history.steps.length - 1]?.session_id
-      : undefined;
-
-    // If the history already belongs to this session, just update access time
     const existingSession = this.sessions.get(sessionId);
     if (existingSession) {
       existingSession.lastAccessed = Date.now();
 
-      // Only switch if we're not already pointing at this session's history
       if (this.history !== existingSession.history) {
-        // Save current default history if it has content and no session owns it
         this.saveCurrentHistoryIfNeeded();
-
         this.history = existingSession.history;
         this.rebuildIndexes();
       }
       return;
     }
 
-    // New session: save current history if needed, create new session
     this.saveCurrentHistoryIfNeeded();
 
     const newHistory = this.createNewHistory();
@@ -436,8 +547,6 @@ export class DelveServer {
   }
 
   private saveCurrentHistoryIfNeeded(): void {
-    // If current history has steps and doesn't belong to any session, save it
-    // under a default key so it isn't lost
     if (this.history.steps.length > 0) {
       const currentSessionId = this.history.steps[0]?.session_id;
       if (currentSessionId && !this.sessions.has(currentSessionId)) {
@@ -456,7 +565,6 @@ export class DelveServer {
     this.toolsUsedSet.clear();
     this.premiseRegistry.clear();
 
-    // Rebuild from current history's steps
     for (const step of this.history.steps) {
       this.stepIndex.set(step.step, step);
       this.stepNumbers.add(step.step);
@@ -467,15 +575,12 @@ export class DelveServer {
       }
     }
 
-    // Rebuild premise registry
     this.premiseRegistry.rebuildFromSteps(this.history.steps);
 
-    // Rebuild frame index
     for (const frame of this.history.frames) {
       this.frameIndex.set(frame.frame_id, frame);
     }
 
-    // Reset frame counter to max existing frame ID
     this.frameCounter = 0;
     for (const frame of this.history.frames) {
       if (frame.frame_id > this.frameCounter) {
@@ -490,7 +595,6 @@ export class DelveServer {
 
     for (const [id, session] of this.sessions) {
       if (now - session.lastAccessed > timeoutMs) {
-        // Don't delete the currently active session
         if (session.history !== this.history) {
           this.sessions.delete(id);
         }
@@ -514,7 +618,6 @@ export class DelveServer {
       }
     }
 
-    // Include current step's deps (it may not be in history yet)
     if (currentStep !== undefined && currentDeps && currentDeps.length > 0) {
       graph.set(currentStep, currentDeps);
     }
@@ -530,10 +633,8 @@ export class DelveServer {
     const excess = this.history.steps.length - this.config.system.maxHistorySize;
     if (excess <= 0) return;
 
-    // Remove oldest steps (FIFO)
     const removed = this.history.steps.splice(0, excess);
 
-    // Clean up indexes
     const removedStepNumbers = new Set<number>();
     for (const step of removed) {
       removedStepNumbers.add(step.step);
@@ -541,10 +642,8 @@ export class DelveServer {
       this.stepNumbers.delete(step.step);
     }
 
-    // Clean up premise registry
     this.premiseRegistry.removePremisesForSteps(removedStepNumbers);
 
-    // Clean up frames: remove frames that no step references anymore
     const referencedFrameIds = new Set<number>();
     for (const step of this.history.steps) {
       if (step.frame_id !== undefined) {

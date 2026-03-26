@@ -29,14 +29,14 @@ export const frameInputSchema = z.object({
   assumptions: z
     .array(assumptionSchema)
     .describe(
-      'List every assumption underlying your understanding of the problem. Each must include how it could be disproved.'
+      'List every assumption underlying your understanding of the problem. Include implicit ones — things you\'re taking for granted. Each must include how it could be disproved.'
     ),
 
   alternative_interpretations: z
     .array(z.string().min(1))
     .min(2)
     .describe(
-      'At least 2 alternative ways to interpret the problem. Forces you to consider that your first reading may not be the only valid one.'
+      'At least 2 GENUINELY DIFFERENT ways to interpret the problem. "It could be A" and "It could be A but slightly different" is not two alternatives. Each should point to a different root cause or a different solution direction.'
     ),
 
   chosen_interpretation: z
@@ -51,6 +51,27 @@ export const frameInputSchema = z.object({
     .min(1)
     .describe(
       'Why did you choose this interpretation over the alternatives? What makes it the strongest framing?'
+    ),
+
+  strongest_objection: z
+    .string()
+    .optional()
+    .describe(
+      'What\'s the best argument AGAINST your chosen interpretation? Steel-man the opposition — if you can\'t argue against your own choice, you haven\'t thought hard enough.'
+    ),
+
+  pre_mortem: z
+    .string()
+    .optional()
+    .describe(
+      'Imagine you\'re wrong. What\'s the most likely reason your interpretation failed? Name the specific failure mode, not a vague "I might be wrong."'
+    ),
+
+  predictions: z
+    .array(z.string().min(1))
+    .optional()
+    .describe(
+      'If your interpretation is correct, name 2-3 specific, observable things that should be true. These become your verification targets for subsequent reasoning steps.'
     ),
 
   stakes: z

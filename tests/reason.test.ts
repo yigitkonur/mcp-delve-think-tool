@@ -465,4 +465,195 @@ describe('processReason', () => {
     expect(result.stability.risk_level).toBe('critical');
     expect(result.stability.weakest_premise!.step).toBe(1);
   });
+
+  // ── v2 LLM-guided thinking tests ──
+
+  it('warns about assumed premise missing verification_action', () => {
+    const result = server.processReason(
+      makeReasonInput(1, {
+        premises: [
+          { claim: 'Cache is stale', source: 'assumed', source_detail: 'guess', confidence: 0.5 },
+        ],
+      }),
+    );
+
+    expect(result.warnings).toContainEqual(
+      expect.stringContaining('without verification_action'),
+    );
+  });
+
+  it('warns about assumed premise missing if_wrong', () => {
+    const result = server.processReason(
+      makeReasonInput(1, {
+        premises: [
+          { claim: 'Cache is stale', source: 'assumed', source_detail: 'guess', confidence: 0.5 },
+        ],
+      }),
+    );
+
+    expect(result.warnings).toContainEqual(
+      expect.stringContaining('without if_wrong'),
+    );
+  });
+
+  it('no verification_action warning when provided on assumed premise', () => {
+    const result = server.processReason(
+      makeReasonInput(1, {
+        premises: [
+          {
+            claim: 'Cache is stale',
+            source: 'assumed',
+            source_detail: 'guess',
+            confidence: 0.5,
+            verification_action: 'Check redis TTL with redis-cli',
+            if_wrong: 'Cache hits would still be high',
+          },
+        ],
+      }),
+    );
+
+    const vaWarnings = result.warnings.filter(w => w.includes('verification_action'));
+    expect(vaWarnings).toHaveLength(0);
+    const iwWarnings = result.warnings.filter(w => w.includes('if_wrong'));
+    expect(iwWarnings).toHaveLength(0);
+  });
+
+  it('no verification warnings for verified premises', () => {
+    const result = server.processReason(
+      makeReasonInput(1, {
+        premises: [
+          { claim: 'Pool is 10', source: 'verified', source_detail: 'config', confidence: 0.95 },
+        ],
+      }),
+    );
+
+    const vaWarnings = result.warnings.filter(w => w.includes('verification_action'));
+    expect(vaWarnings).toHaveLength(0);
+  });
+
+  it('detects compound premise with "and"', () => {
+    const result = server.processReason(
+      makeReasonInput(1, {
+        premises: [
+          {
+            claim: 'The API returns JSON and the rate limit is 100 per minute',
+            source: 'verified',
+            source_detail: 'docs',
+            confidence: 0.9,
+          },
+        ],
+      }),
+    );
+
+    expect(result.warnings).toContainEqual(
+      expect.stringContaining('multiple claims'),
+    );
+  });
+
+  it('derived_from auto-wires into dependency graph', () => {
+    server.processReason(
+      makeReasonInput(1, {
+        premises: [
+          { claim: 'Root fact', source: 'verified', source_detail: 'test', confidence: 0.4 },
+        ],
+      }),
+    );
+
+    const result = server.processReason(
+      makeReasonInput(2, {
+        premises: [
+          {
+            claim: 'Derived conclusion',
+            source: 'derived',
+            source_detail: 'from step 1',
+            confidence: 0.9,
+            derived_from: [1],
+          },
+        ],
+      }),
+    );
+
+    // Chain confidence should inherit step 1's weak premise via auto-wired dep
+    expect(result.stability.chain_confidence).toBe(0.4);
+    expect(result.stability.weakest_premise!.step).toBe(1);
+  });
+
+  it('warns about derived premise without derived_from', () => {
+    const result = server.processReason(
+      makeReasonInput(1, {
+        premises: [
+          { claim: 'Derived without source', source: 'derived', source_detail: 'logic', confidence: 0.8 },
+        ],
+      }),
+    );
+
+    expect(result.warnings).toContainEqual(
+      expect.stringContaining('without derived_from'),
+    );
+  });
+
+  it('missing_evidence_count in result', () => {
+    const result = server.processReason(
+      makeReasonInput(1, {
+        missing_evidence: ['Database slow query logs', 'Connection pool metrics'],
+      }),
+    );
+
+    expect(result.missing_evidence_count).toBe(2);
+  });
+
+  it('missing_evidence_count is 0 when not provided', () => {
+    const result = server.processReason(makeReasonInput(1));
+
+    expect(result.missing_evidence_count).toBe(0);
+  });
+
+  it('confidence anchoring warning on revision with barely-changed confidence', () => {
+    server.processReason(
+      makeReasonInput(1, {
+        premises: [
+          { claim: 'Peak needs 25 connections', source: 'assumed', source_detail: 'estimate', confidence: 0.5,
+            verification_action: 'check metrics', if_wrong: 'lower peak' },
+        ],
+      }),
+    );
+
+    const result = server.processReason(
+      makeReasonInput(2, {
+        revises_step: 1,
+        revision_reason: 'Checked actual metrics',
+        premises: [
+          { claim: 'Peak needs 35 connections', source: 'verified', source_detail: 'cloudwatch', confidence: 0.52 },
+        ],
+      }),
+    );
+
+    expect(result.warnings).toContainEqual(
+      expect.stringContaining('anchoring'),
+    );
+  });
+
+  it('no anchoring warning when confidence changes significantly on revision', () => {
+    server.processReason(
+      makeReasonInput(1, {
+        premises: [
+          { claim: 'Peak needs 25 connections', source: 'assumed', source_detail: 'estimate', confidence: 0.5,
+            verification_action: 'check metrics', if_wrong: 'lower peak' },
+        ],
+      }),
+    );
+
+    const result = server.processReason(
+      makeReasonInput(2, {
+        revises_step: 1,
+        revision_reason: 'Verified from metrics',
+        premises: [
+          { claim: 'Peak needs 35 connections', source: 'verified', source_detail: 'cloudwatch', confidence: 0.95 },
+        ],
+      }),
+    );
+
+    const anchorWarnings = result.warnings.filter(w => w.includes('anchoring'));
+    expect(anchorWarnings).toHaveLength(0);
+  });
 });

@@ -4,7 +4,9 @@ const premiseSchema = z.object({
   claim: z
     .string()
     .min(1)
-    .describe('A single factual claim this reasoning step depends on.'),
+    .describe(
+      'ONE falsifiable factual claim this step depends on. If your claim contains "and", split it into separate premises — each needs its own confidence.'
+    ),
   source: z
     .enum(['verified', 'recalled', 'assumed', 'derived'])
     .describe(
@@ -22,6 +24,30 @@ const premiseSchema = z.object({
     .max(1)
     .describe(
       'Your confidence in this premise, from 0 (no confidence) to 1 (certain). Be honest — overconfidence is the root of reasoning failures.'
+    ),
+  if_wrong: z
+    .string()
+    .optional()
+    .describe(
+      'What would you observe if this claim is false? Name the specific symptom, metric, or behavior that would indicate this premise is wrong. Forces disconfirmation thinking.'
+    ),
+  verification_action: z
+    .string()
+    .optional()
+    .describe(
+      'How would you verify this? Name the specific command, query, file check, or API call. Critical for "assumed" premises — transforms "I\'m guessing" into "here\'s how I\'d check."'
+    ),
+  confidence_reasoning: z
+    .string()
+    .optional()
+    .describe(
+      'Why this confidence level and not higher or lower? What specific evidence or lack thereof justifies this number? Prevents arbitrary confidence assignment.'
+    ),
+  derived_from: z
+    .array(z.number().int().positive())
+    .optional()
+    .describe(
+      'If source is "derived", which step numbers was this derived from? Server auto-wires these into the dependency graph for stability scoring.'
     ),
 });
 
@@ -67,7 +93,7 @@ export const reasonInputSchema = z.object({
     .string()
     .min(1)
     .describe(
-      'Your actual reasoning for this step. Show your work — explain what you are considering, weighing, or concluding.'
+      'Your actual reasoning for this step. Explain how your outcome follows from your premises — if the connection isn\'t obvious, it probably has a hidden assumption.'
     ),
 
   premises: z
@@ -125,7 +151,14 @@ export const reasonInputSchema = z.object({
     .array(z.number().int().positive())
     .optional()
     .describe(
-      'Step numbers this step logically depends on. Used for stability analysis — if a dependency is weak, this step inherits that weakness.'
+      'Step numbers this step logically depends on. If your thought references a conclusion from a prior step, list that step here — otherwise stability scoring can\'t track the chain.'
+    ),
+
+  missing_evidence: z
+    .array(z.string().min(1))
+    .optional()
+    .describe(
+      'What information would you WANT but don\'t have? Name the specific data, metrics, or confirmations that are absent. Being explicit about gaps prevents building on sand.'
     ),
 
   tools_used: z

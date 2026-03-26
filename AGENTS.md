@@ -136,7 +136,7 @@ tests/                → 88 vitest tests
 
 - never add external api dependencies to the engine. the engine must stay pure computation.
 - never remove `.describe()` from schema fields. agents depend on these descriptions to use the tools correctly.
-- never make contradiction detection ai-powered. it uses simple string matching + basic stemming on purpose — to avoid the recursive self-evaluation problem (asking the model to find its own contradictions).
+- the core contradiction detector uses string matching + basic stemming (no NLP). there's an optional LLM second-pass (via OpenRouter) that catches semantic contradictions the string matcher misses. the LLM compares stored claims from different steps — it's not evaluating its own current thought, so the self-reference problem doesn't apply.
 - never return raw engine internals. tool responses are curated for agent consumption.
 
 ### when changing tools
@@ -144,7 +144,7 @@ tests/                → 88 vitest tests
 1. update the zod schema in `src/schemas/`
 2. update the engine method in `src/engine/delve-server.ts`
 3. update the tool handler in `src/tools/`
-4. run `pnpm test` — all 71 tests must pass
+4. run `pnpm test` — all 88 tests must pass
 5. run `pnpm typecheck` — zero errors
 
 ### testing
@@ -167,3 +167,6 @@ if you add a new feature to the engine, add tests in the matching `tests/*.test.
 | `DELVE_ENABLE_SESSIONS` | `false` | per-session history isolation |
 | `DELVE_MAX_HISTORY` | `100` | max steps in memory |
 | `DELVE_SESSION_TIMEOUT` | `60` | session expiry (minutes) |
+| `OPENROUTER_API_KEY` | (none) | enables LLM enrichment: semantic contradiction detection + natural language feedback |
+| `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | override LLM API endpoint |
+| `DELVE_LLM_MODEL` | `google/gemini-2.5-flash` | model for LLM enrichment calls |

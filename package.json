@@ -1,0 +1,47 @@
+{
+  "name": "delve-mcp",
+  "version": "1.0.0",
+  "description": "Deep Epistemic Logic and Verification Engine — premise-tracked reasoning MCP server for AI agents",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "delve-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "mcp-use dev",
+    "build": "mcp-use build",
+    "start": "mcp-use start",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "inspect": "npx @mcp-use/inspector --url http://localhost:3001/mcp"
+  },
+  "keywords": [
+    "mcp",
+    "reasoning",
+    "structured-thinking",
+    "epistemic",
+    "premise-tracking",
+    "ai",
+    "model-context-protocol",
+    "delve"
+  ],
+  "author": "Yigit Konur",
+  "license": "MIT",
+  "dependencies": {
+    "mcp-use": "1.22.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@mcp-use/cli": "2.20.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.1.4"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  }
+}

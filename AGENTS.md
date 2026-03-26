@@ -7,12 +7,12 @@ mcp-delve-think-tool — an mcp server that gives ai agents a way to question th
 ## commands
 
 ```bash
-pnpm dev          # dev server with hmr on :3001
-pnpm build        # production build -> dist/
-pnpm start        # run built server
-pnpm test         # 64 unit tests via vitest
-pnpm typecheck    # tsc --noEmit
-pnpm deploy       # deploy to manufact cloud
+pnpm dev              # dev server with hmr on :3001
+pnpm build            # production build -> dist/
+pnpm start            # run built server
+pnpm test             # 71 unit tests via vitest
+pnpm typecheck        # tsc --noEmit
+npx mcp-use deploy    # deploy to manufact cloud (not pnpm deploy)
 ```
 
 ## how to use the tools (for agents consuming this mcp)

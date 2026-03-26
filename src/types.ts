@@ -127,6 +127,7 @@ export interface ReasonResult {
   unverified_assumptions: number;
   missing_evidence_count: number;
   revised_step?: number;
+  llm_feedback?: string;
 }
 
 // --- History / session types ---

@@ -17,6 +17,7 @@ import { SESSION_CLEANUP_INTERVAL } from '../constants.js';
 import { PremiseRegistry } from './premise-registry.js';
 import { ContradictionDetector } from './contradiction-detector.js';
 import { StabilityScorer } from './stability-scorer.js';
+import { detectSemanticContradictions, generateFeedback, getLLMConfig } from './llm-enrichment.js';
 
 export class DelveServer {
   private history: DelveHistory;
@@ -158,7 +159,7 @@ export class DelveServer {
   // Reason processing (core method)
   // ──────────────────────────────────────────────────────────────
 
-  processReason(input: {
+  async processReason(input: {
     step: number;
     thought: string;
     premises: Array<{
@@ -187,7 +188,7 @@ export class DelveServer {
     tools_used?: string[];
     external_context?: Record<string, unknown>;
     session_id?: string;
-  }): ReasonResult {
+  }): Promise<ReasonResult> {
     const warnings: string[] = [];
     const stepStartTime = Date.now();
 
@@ -422,6 +423,49 @@ export class DelveServer {
       this.detectReasoningStall(warnings);
     }
 
+    // 12c. LLM enrichment (optional — only if OPENROUTER_API_KEY is set)
+    let llmFeedback: string | undefined;
+    const llmConfig = getLLMConfig();
+    if (llmConfig) {
+      // Second-pass: semantic contradiction detection (only if string matching found nothing)
+      if (contradictions.length === 0 && this.config.features.contradictionCheck) {
+        try {
+          const semanticContradictions = await detectSemanticContradictions(
+            llmConfig,
+            input.step,
+            input.premises,
+            this.premiseRegistry.premisesByStep
+          );
+          if (semanticContradictions.length > 0) {
+            contradictions.push(...semanticContradictions);
+            this.history.metadata.contradiction_count += semanticContradictions.length;
+            warnings.push(
+              `${semanticContradictions.length} semantic contradiction(s) detected via LLM analysis.`
+            );
+          }
+        } catch {
+          // LLM failure is never fatal — degrade gracefully
+        }
+      }
+
+      // Natural language feedback
+      try {
+        const feedback = await generateFeedback(llmConfig, {
+          step: input.step,
+          warnings,
+          contradictions,
+          chainConfidence: stability.chain_confidence,
+          riskLevel: stability.risk_level,
+          unverifiedCount: unverifiedAssumptions,
+        });
+        if (feedback) {
+          llmFeedback = feedback;
+        }
+      } catch {
+        // LLM failure is never fatal
+      }
+    }
+
     // 13. Build and return result
     return {
       step: input.step,
@@ -433,6 +477,7 @@ export class DelveServer {
       unverified_assumptions: unverifiedAssumptions,
       missing_evidence_count: input.missing_evidence?.length ?? 0,
       revised_step: input.revises_step,
+      ...(llmFeedback ? { llm_feedback: llmFeedback } : {}),
     };
   }
 

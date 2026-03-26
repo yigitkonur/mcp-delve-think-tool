@@ -36,7 +36,7 @@ RESPONSE INCLUDES:
     },
     async (args) => {
       try {
-        const result = engine.processReason(args);
+        const result = await engine.processReason(args);
         return text(JSON.stringify(result, null, 2));
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

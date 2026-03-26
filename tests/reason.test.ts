@@ -61,8 +61,8 @@ describe('processReason', () => {
     server = new DelveServer(createConfig());
   });
 
-  it('valid step returns step number, completed=false, total_steps', () => {
-    const result = server.processReason(makeReasonInput(1));
+  it('valid step returns step number, completed=false, total_steps', async () => {
+    const result = await server.processReason(makeReasonInput(1));
 
     expect(result.step).toBe(1);
     expect(result.completed).toBe(false);
@@ -70,17 +70,17 @@ describe('processReason', () => {
     expect(result.warnings).toEqual([]);
   });
 
-  it('total_steps increments with each call', () => {
-    server.processReason(makeReasonInput(1));
-    const r2 = server.processReason(makeReasonInput(2));
+  it('total_steps increments with each call', async () => {
+    await server.processReason(makeReasonInput(1));
+    const r2 = await server.processReason(makeReasonInput(2));
 
     expect(r2.total_steps).toBe(2);
   });
 
-  it('revision marks original step revised_by and increments revision count', () => {
-    server.processReason(makeReasonInput(1));
+  it('revision marks original step revised_by and increments revision count', async () => {
+    await server.processReason(makeReasonInput(1));
 
-    const result = server.processReason(
+    const result = await server.processReason(
       makeReasonInput(2, {
         revises_step: 1,
         revision_reason: 'Found better approach',
@@ -95,10 +95,10 @@ describe('processReason', () => {
     expect(history.metadata.revisions_count).toBe(1);
   });
 
-  it('rejects revision of future step', () => {
-    server.processReason(makeReasonInput(1));
+  it('rejects revision of future step', async () => {
+    await server.processReason(makeReasonInput(1));
 
-    const result = server.processReason(
+    const result = await server.processReason(
       makeReasonInput(2, { revises_step: 3 }),
     );
 
@@ -107,8 +107,8 @@ describe('processReason', () => {
     );
   });
 
-  it('rejects revision of same step', () => {
-    const result = server.processReason(
+  it('rejects revision of same step', async () => {
+    const result = await server.processReason(
       makeReasonInput(1, { revises_step: 1 }),
     );
 
@@ -117,10 +117,10 @@ describe('processReason', () => {
     );
   });
 
-  it('warns when revising a non-existent step', () => {
-    server.processReason(makeReasonInput(1));
+  it('warns when revising a non-existent step', async () => {
+    await server.processReason(makeReasonInput(1));
 
-    const result = server.processReason(
+    const result = await server.processReason(
       makeReasonInput(3, { revises_step: 2 }),
     );
 
@@ -129,8 +129,8 @@ describe('processReason', () => {
     );
   });
 
-  it('dependency validation: rejects circular (self-dep)', () => {
-    const result = server.processReason(
+  it('dependency validation: rejects circular (self-dep)', async () => {
+    const result = await server.processReason(
       makeReasonInput(1, { dependencies: [1] }),
     );
 
@@ -139,8 +139,8 @@ describe('processReason', () => {
     );
   });
 
-  it('dependency validation: rejects future deps', () => {
-    const result = server.processReason(
+  it('dependency validation: rejects future deps', async () => {
+    const result = await server.processReason(
       makeReasonInput(1, { dependencies: [5] }),
     );
 
@@ -149,10 +149,10 @@ describe('processReason', () => {
     );
   });
 
-  it('dependency validation: warns about missing deps', () => {
-    server.processReason(makeReasonInput(1));
+  it('dependency validation: warns about missing deps', async () => {
+    await server.processReason(makeReasonInput(1));
 
-    const result = server.processReason(
+    const result = await server.processReason(
       makeReasonInput(3, { dependencies: [2] }),
     );
 
@@ -161,10 +161,10 @@ describe('processReason', () => {
     );
   });
 
-  it('valid dependency produces no warning', () => {
-    server.processReason(makeReasonInput(1));
+  it('valid dependency produces no warning', async () => {
+    await server.processReason(makeReasonInput(1));
 
-    const result = server.processReason(
+    const result = await server.processReason(
       makeReasonInput(2, { dependencies: [1] }),
     );
 
@@ -178,9 +178,9 @@ describe('processReason', () => {
     expect(depWarnings).toHaveLength(0);
   });
 
-  it('is_final_step marks completion', () => {
-    server.processReason(makeReasonInput(1));
-    const result = server.processReason(
+  it('is_final_step marks completion', async () => {
+    await server.processReason(makeReasonInput(1));
+    const result = await server.processReason(
       makeReasonInput(2, { is_final_step: true }),
     );
 
@@ -191,25 +191,25 @@ describe('processReason', () => {
     expect(history.completed).toBe(true);
   });
 
-  it('warns when no frame_id provided and requireFraming is enabled', () => {
+  it('warns when no frame_id provided and requireFraming is enabled', async () => {
     server = new DelveServer(
       createConfig({ features: { enableSessions: false, requireFraming: true, contradictionCheck: true } }),
     );
 
-    const result = server.processReason(makeReasonInput(1));
+    const result = await server.processReason(makeReasonInput(1));
 
     expect(result.warnings).toContainEqual(
       expect.stringContaining('Reasoning without prior problem framing'),
     );
   });
 
-  it('no framing warning when frame_id is provided', () => {
+  it('no framing warning when frame_id is provided', async () => {
     server = new DelveServer(
       createConfig({ features: { enableSessions: false, requireFraming: true, contradictionCheck: true } }),
     );
 
     const frame = server.processFrame(makeFrameInput());
-    const result = server.processReason(
+    const result = await server.processReason(
       makeReasonInput(1, { frame_id: frame.frame_id }),
     );
 
@@ -219,8 +219,8 @@ describe('processReason', () => {
     expect(framingWarnings).toHaveLength(0);
   });
 
-  it('warns when frame_id references non-existent frame', () => {
-    const result = server.processReason(
+  it('warns when frame_id references non-existent frame', async () => {
+    const result = await server.processReason(
       makeReasonInput(1, { frame_id: 999 }),
     );
 
@@ -229,8 +229,8 @@ describe('processReason', () => {
     );
   });
 
-  it('contradiction detection produces contradictions array', () => {
-    server.processReason(
+  it('contradiction detection produces contradictions array', async () => {
+    await server.processReason(
       makeReasonInput(1, {
         premises: [
           {
@@ -243,7 +243,7 @@ describe('processReason', () => {
       }),
     );
 
-    const result = server.processReason(
+    const result = await server.processReason(
       makeReasonInput(2, {
         premises: [
           {
@@ -266,12 +266,12 @@ describe('processReason', () => {
     );
   });
 
-  it('contradiction detection can be disabled via config', () => {
+  it('contradiction detection can be disabled via config', async () => {
     server = new DelveServer(
       createConfig({ features: { enableSessions: false, requireFraming: false, contradictionCheck: false } }),
     );
 
-    server.processReason(
+    await server.processReason(
       makeReasonInput(1, {
         premises: [
           { claim: 'Feature enabled', source: 'verified', source_detail: 'test', confidence: 0.9 },
@@ -279,7 +279,7 @@ describe('processReason', () => {
       }),
     );
 
-    const result = server.processReason(
+    const result = await server.processReason(
       makeReasonInput(2, {
         premises: [
           { claim: 'Feature not enabled', source: 'verified', source_detail: 'test', confidence: 0.85 },
@@ -290,8 +290,8 @@ describe('processReason', () => {
     expect(result.contradictions).toHaveLength(0);
   });
 
-  it('weak premise surfacing in stability report', () => {
-    const result = server.processReason(
+  it('weak premise surfacing in stability report', async () => {
+    const result = await server.processReason(
       makeReasonInput(1, {
         premises: [
           {
@@ -309,8 +309,8 @@ describe('processReason', () => {
     expect(result.stability.risk_level).toBe('critical');
   });
 
-  it('unverified assumptions counted correctly', () => {
-    server.processReason(
+  it('unverified assumptions counted correctly', async () => {
+    await server.processReason(
       makeReasonInput(1, {
         premises: [
           { claim: 'Verified fact', source: 'verified', source_detail: 'doc', confidence: 0.9 },
@@ -319,7 +319,7 @@ describe('processReason', () => {
       }),
     );
 
-    server.processReason(
+    await server.processReason(
       makeReasonInput(2, {
         premises: [
           { claim: 'Another assumption', source: 'assumed', source_detail: 'guess', confidence: 0.6 },
@@ -327,19 +327,19 @@ describe('processReason', () => {
       }),
     );
 
-    const result = server.processReason(makeReasonInput(3));
+    const result = await server.processReason(makeReasonInput(3));
     // Steps 1 and 2 have 2 assumed premises total, step 3 has 0
     expect(result.unverified_assumptions).toBe(2);
   });
 
-  it('history trimming at maxHistorySize', () => {
+  it('history trimming at maxHistorySize', async () => {
     server = new DelveServer(
       createConfig({ system: { maxHistorySize: 3, sessionTimeout: 60 } }),
     );
 
     // Add 5 steps; max is 3, so oldest 2 should be trimmed
     for (let i = 1; i <= 5; i++) {
-      server.processReason(makeReasonInput(i));
+      await server.processReason(makeReasonInput(i));
     }
 
     const history = server.getHistory();
@@ -350,20 +350,20 @@ describe('processReason', () => {
     expect(history.steps[2]!.step).toBe(5);
   });
 
-  it('session isolation: separate histories per session_id', () => {
+  it('session isolation: separate histories per session_id', async () => {
     server = new DelveServer(
       createConfig({ features: { enableSessions: true, requireFraming: false, contradictionCheck: true } }),
     );
 
     // Session A: add 2 steps
-    server.processReason(makeReasonInput(1, { session_id: 'session-a' }));
-    server.processReason(makeReasonInput(2, { session_id: 'session-a' }));
+    await server.processReason(makeReasonInput(1, { session_id: 'session-a' }));
+    await server.processReason(makeReasonInput(2, { session_id: 'session-a' }));
 
     // Session B: add 1 step
-    server.processReason(makeReasonInput(1, { session_id: 'session-b' }));
+    await server.processReason(makeReasonInput(1, { session_id: 'session-b' }));
 
     // Switch back to session A
-    const result = server.processReason(
+    const result = await server.processReason(
       makeReasonInput(3, { session_id: 'session-a' }),
     );
 
@@ -371,17 +371,17 @@ describe('processReason', () => {
     expect(result.total_steps).toBe(3);
 
     // Switch to session B and verify isolation
-    const resultB = server.processReason(
+    const resultB = await server.processReason(
       makeReasonInput(2, { session_id: 'session-b' }),
     );
     expect(resultB.total_steps).toBe(2);
   });
 
-  it('tools_used tracked in metadata', () => {
-    server.processReason(
+  it('tools_used tracked in metadata', async () => {
+    await server.processReason(
       makeReasonInput(1, { tools_used: ['grep', 'read'] }),
     );
-    server.processReason(
+    await server.processReason(
       makeReasonInput(2, { tools_used: ['grep', 'write'] }),
     );
 
@@ -394,17 +394,17 @@ describe('processReason', () => {
     expect(toolsUsed.filter((t) => t === 'grep')).toHaveLength(1);
   });
 
-  it('warns about duplicate step numbers', () => {
-    server.processReason(makeReasonInput(1));
-    const result = server.processReason(makeReasonInput(1));
+  it('warns about duplicate step numbers', async () => {
+    await server.processReason(makeReasonInput(1));
+    const result = await server.processReason(makeReasonInput(1));
 
     expect(result.warnings).toContainEqual(
       expect.stringContaining('Step 1 already exists'),
     );
   });
 
-  it('warns when all premises are assumed', () => {
-    const result = server.processReason(
+  it('warns when all premises are assumed', async () => {
+    const result = await server.processReason(
       makeReasonInput(1, {
         premises: [
           { claim: 'Guess A', source: 'assumed', source_detail: 'no evidence', confidence: 0.5 },
@@ -418,8 +418,8 @@ describe('processReason', () => {
     );
   });
 
-  it('warns about critically low confidence premises', () => {
-    const result = server.processReason(
+  it('warns about critically low confidence premises', async () => {
+    const result = await server.processReason(
       makeReasonInput(1, {
         premises: [
           { claim: 'Weak claim', source: 'assumed', source_detail: 'guess', confidence: 0.2 },
@@ -432,8 +432,8 @@ describe('processReason', () => {
     );
   });
 
-  it('warns when session_id provided but sessions disabled', () => {
-    const result = server.processReason(
+  it('warns when session_id provided but sessions disabled', async () => {
+    const result = await server.processReason(
       makeReasonInput(1, { session_id: 'test-session' }),
     );
 
@@ -442,8 +442,8 @@ describe('processReason', () => {
     );
   });
 
-  it('stability report includes dependency chain', () => {
-    server.processReason(
+  it('stability report includes dependency chain', async () => {
+    await server.processReason(
       makeReasonInput(1, {
         premises: [
           { claim: 'Root weak', source: 'assumed', source_detail: 'guess', confidence: 0.3 },
@@ -451,7 +451,7 @@ describe('processReason', () => {
       }),
     );
 
-    const result = server.processReason(
+    const result = await server.processReason(
       makeReasonInput(2, {
         dependencies: [1],
         premises: [
@@ -468,8 +468,8 @@ describe('processReason', () => {
 
   // ── v2 LLM-guided thinking tests ──
 
-  it('warns about assumed premise missing verification_action', () => {
-    const result = server.processReason(
+  it('warns about assumed premise missing verification_action', async () => {
+    const result = await server.processReason(
       makeReasonInput(1, {
         premises: [
           { claim: 'Cache is stale', source: 'assumed', source_detail: 'guess', confidence: 0.5 },
@@ -482,8 +482,8 @@ describe('processReason', () => {
     );
   });
 
-  it('warns about assumed premise missing if_wrong', () => {
-    const result = server.processReason(
+  it('warns about assumed premise missing if_wrong', async () => {
+    const result = await server.processReason(
       makeReasonInput(1, {
         premises: [
           { claim: 'Cache is stale', source: 'assumed', source_detail: 'guess', confidence: 0.5 },
@@ -496,8 +496,8 @@ describe('processReason', () => {
     );
   });
 
-  it('no verification_action warning when provided on assumed premise', () => {
-    const result = server.processReason(
+  it('no verification_action warning when provided on assumed premise', async () => {
+    const result = await server.processReason(
       makeReasonInput(1, {
         premises: [
           {
@@ -518,8 +518,8 @@ describe('processReason', () => {
     expect(iwWarnings).toHaveLength(0);
   });
 
-  it('no verification warnings for verified premises', () => {
-    const result = server.processReason(
+  it('no verification warnings for verified premises', async () => {
+    const result = await server.processReason(
       makeReasonInput(1, {
         premises: [
           { claim: 'Pool is 10', source: 'verified', source_detail: 'config', confidence: 0.95 },
@@ -531,8 +531,8 @@ describe('processReason', () => {
     expect(vaWarnings).toHaveLength(0);
   });
 
-  it('detects compound premise with "and"', () => {
-    const result = server.processReason(
+  it('detects compound premise with "and"', async () => {
+    const result = await server.processReason(
       makeReasonInput(1, {
         premises: [
           {
@@ -550,8 +550,8 @@ describe('processReason', () => {
     );
   });
 
-  it('derived_from auto-wires into dependency graph', () => {
-    server.processReason(
+  it('derived_from auto-wires into dependency graph', async () => {
+    await server.processReason(
       makeReasonInput(1, {
         premises: [
           { claim: 'Root fact', source: 'verified', source_detail: 'test', confidence: 0.4 },
@@ -559,7 +559,7 @@ describe('processReason', () => {
       }),
     );
 
-    const result = server.processReason(
+    const result = await server.processReason(
       makeReasonInput(2, {
         premises: [
           {
@@ -578,8 +578,8 @@ describe('processReason', () => {
     expect(result.stability.weakest_premise!.step).toBe(1);
   });
 
-  it('warns about derived premise without derived_from', () => {
-    const result = server.processReason(
+  it('warns about derived premise without derived_from', async () => {
+    const result = await server.processReason(
       makeReasonInput(1, {
         premises: [
           { claim: 'Derived without source', source: 'derived', source_detail: 'logic', confidence: 0.8 },
@@ -592,8 +592,8 @@ describe('processReason', () => {
     );
   });
 
-  it('missing_evidence_count in result', () => {
-    const result = server.processReason(
+  it('missing_evidence_count in result', async () => {
+    const result = await server.processReason(
       makeReasonInput(1, {
         missing_evidence: ['Database slow query logs', 'Connection pool metrics'],
       }),
@@ -602,14 +602,14 @@ describe('processReason', () => {
     expect(result.missing_evidence_count).toBe(2);
   });
 
-  it('missing_evidence_count is 0 when not provided', () => {
-    const result = server.processReason(makeReasonInput(1));
+  it('missing_evidence_count is 0 when not provided', async () => {
+    const result = await server.processReason(makeReasonInput(1));
 
     expect(result.missing_evidence_count).toBe(0);
   });
 
-  it('confidence anchoring warning on revision with barely-changed confidence', () => {
-    server.processReason(
+  it('confidence anchoring warning on revision with barely-changed confidence', async () => {
+    await server.processReason(
       makeReasonInput(1, {
         premises: [
           { claim: 'Peak needs 25 connections', source: 'assumed', source_detail: 'estimate', confidence: 0.5,
@@ -618,7 +618,7 @@ describe('processReason', () => {
       }),
     );
 
-    const result = server.processReason(
+    const result = await server.processReason(
       makeReasonInput(2, {
         revises_step: 1,
         revision_reason: 'Checked actual metrics',
@@ -633,8 +633,8 @@ describe('processReason', () => {
     );
   });
 
-  it('no anchoring warning when confidence changes significantly on revision', () => {
-    server.processReason(
+  it('no anchoring warning when confidence changes significantly on revision', async () => {
+    await server.processReason(
       makeReasonInput(1, {
         premises: [
           { claim: 'Peak needs 25 connections', source: 'assumed', source_detail: 'estimate', confidence: 0.5,
@@ -643,7 +643,7 @@ describe('processReason', () => {
       }),
     );
 
-    const result = server.processReason(
+    const result = await server.processReason(
       makeReasonInput(2, {
         revises_step: 1,
         revision_reason: 'Verified from metrics',
